@@ -25,9 +25,12 @@ def _save(entries):
 @mcp.tool()
 def add_learning(
     topic: Annotated[str, Field(description="What the entry is about, e.g. 'MCP tools'")],
-    note: Annotated[str, Field(description="What was learned about this topic")],
+    note: Annotated[str, Field(description="A 2-4 sentence explanation of what was learned, not just a one-line tag")],
 ) -> str:
-    """Save a new learning entry with a topic and a note."""
+    """Save a new learning entry. Call this whenever the user shares something
+    they learned during the conversation, even multiple times across a long chat.
+    Write the note as a real explanation someone could read back later to
+    understand the concept, not a short label."""
     entries = _load()
     entries.append({
         "topic": topic,
@@ -36,6 +39,21 @@ def add_learning(
     })
     _save(entries)
     return f"Saved: {topic}"
+
+
+@mcp.tool()
+def search_learnings(
+    keyword: Annotated[str, Field(description="Word to search for in saved topics or notes")],
+) -> str:
+    """Search saved learnings for a keyword in the topic or note."""
+    entries = _load()
+    matches = [
+        e for e in entries
+        if keyword.lower() in e["topic"].lower() or keyword.lower() in e["note"].lower()
+    ]
+    if not matches:
+        return f"No learnings found for '{keyword}'"
+    return "\n".join(f"[{e['date']}] {e['topic']}: {e['note']}" for e in matches)
 
 
 if __name__ == "__main__":
