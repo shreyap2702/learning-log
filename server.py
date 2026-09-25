@@ -37,6 +37,20 @@ def add_learning(
     _save(entries)
     return f"Saved: {topic}"
 
+@mcp.tool()
+def search_learnings(
+    keyword: Annotated[str, Field(description="Word to search for in saved topics or notes")],
+) -> str:
+    """Search saved learnings for a keyword in the topic or note."""
+    entries = _load()
+    matches = [
+        e for e in entries
+        if keyword.lower() in e["topic"].lower() or keyword.lower() in e["note"].lower()
+    ]
+    if not matches:
+        return f"No learnings found for '{keyword}'"
+    return "\n".join(f"[{e['date']}] {e['topic']}: {e['note']}" for e in matches)
+
 
 if __name__ == "__main__":
     mcp.run()
