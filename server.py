@@ -40,6 +40,11 @@ def add_learning(
     _save(entries)
     return f"Saved: {topic}"
 
+@mcp.resource("learnings://all")
+def all_learnings() -> str:
+    """Expose every saved learning entry as raw JSON data."""
+    entries = _load()
+    return json.dumps(entries, indent=2)
 
 if __name__ == "__main__":
     mcp.run()
