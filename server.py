@@ -1,13 +1,21 @@
+import base64
 import json
 import os
 from datetime import datetime
 from typing import Annotated
 
+import requests
+from dotenv import load_dotenv
 from pydantic import Field
 from mcp.server import MCPServer
 
+load_dotenv()
+
 mcp = MCPServer("learning-log")
 DATA_FILE = os.path.join(os.path.dirname(__file__), "learnings.json")
+
+GITHUB_TOKEN = os.environ.get("GITHUB_TOKEN")
+GITHUB_REPO = os.environ.get("GITHUB_REPO")
 
 
 def _load():
@@ -70,6 +78,51 @@ def summarize_week() -> str:
         "Look at all my logged learnings and give me a short summary of what "
         "I learned this week, grouped by topic."
     )
+
+
+def _build_markdown(entries):
+    lines = ["# My Learning Log", ""]
+    for e in entries:
+        lines.append(f"## {e['topic']}")
+        lines.append(f"*{e['date']}*")
+        lines.append("")
+        lines.append(e["details"])
+        lines.append("")
+    return "\n".join(lines)
+
+
+@mcp.tool()
+def push_to_github(
+    filename: Annotated[str, Field(description="Name of the markdown file to create or update in the repo, e.g. 'learnings.md'")] = "learnings.md",
+) -> str:
+    """Push all logged learnings to a formatted markdown file in the configured GitHub repo."""
+    if not GITHUB_TOKEN or not GITHUB_REPO:
+        return "GitHub is not configured. Set GITHUB_TOKEN and GITHUB_REPO in your .env file."
+
+    entries = _load()
+    if not entries:
+        return "No learnings to push yet."
+
+    content = _build_markdown(entries)
+    encoded = base64.b64encode(content.encode()).decode()
+
+    url = f"https://api.github.com/repos/{GITHUB_REPO}/contents/{filename}"
+    headers = {
+        "Authorization": f"Bearer {GITHUB_TOKEN}",
+        "Accept": "application/vnd.github+json",
+    }
+
+    existing = requests.get(url, headers=headers)
+    sha = existing.json().get("sha") if existing.status_code == 200 else None
+
+    payload = {"message": f"update {filename}", "content": encoded}
+    if sha:
+        payload["sha"] = sha
+
+    resp = requests.put(url, headers=headers, json=payload)
+    if resp.status_code in (200, 201):
+        return f"Pushed to {GITHUB_REPO}/{filename}"
+    return f"Failed ({resp.status_code}): {resp.text}"
 
 
 if __name__ == "__main__":
